@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Le Chat du Jour - 猫の日めくり</title>
+    <!-- Tailwind CSSの読み込み -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Playfair Display (Serif) & Lato (Sans-serif) -->
+    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400&family=Playfair+Display:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Lato', sans-serif;
+            background-color: #f7f5f0; /* クリーム色の背景 */
+            background-image: 
+                linear-gradient(to right, #e5e5e5 1px, transparent 1px),
+                linear-gradient(to bottom, #e5e5e5 1px, transparent 1px);
+            background-size: 40px 40px; /* 方眼紙のような薄いグリッド */
+        }
+        
+        h1, h2, .serif-font {
+            font-family: 'Playfair Display', serif;
+        }
+
+        /* エレガントな二重線のボーダー */
+        .border-double-gold {
+            border: 4px double #b49b5a; /* アンティークゴールド */
+        }
+
+        /* 画像コンテナの縦横比を1:1に固定 */
+        .image-container {
+            position: relative;
+            width: 100%;
+            padding-top: 100%;
+        }
+        .image-container img, .image-container div {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* ボタンのスタイル */
+        .btn-french {
+            background-color: #2c3e50; /* ミッドナイトブルー */
+            color: #fff;
+            transition: all 0.3s ease;
+            letter-spacing: 0.05em;
+        }
+        .btn-french:hover {
+            background-color: #b49b5a; /* ホバーでゴールドに */
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .btn-french:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-6">
+    
+    <!-- カード本体 -->
+    <div id="app" class="w-full max-w-md bg-white shadow-xl p-8 md:p-12 relative">
+        
+        <!-- 装飾的なコーナー（四隅） -->
+        <div class="absolute top-4 left-4 w-4 h-4 border-t-2 border-l-2 border-[#b49b5a]"></div>
+        <div class="absolute top-4 right-4 w-4 h-4 border-t-2 border-r-2 border-[#b49b5a]"></div>
+        <div class="absolute bottom-4 left-4 w-4 h-4 border-b-2 border-l-2 border-[#b49b5a]"></div>
+        <div class="absolute bottom-4 right-4 w-4 h-4 border-b-2 border-r-2 border-[#b49b5a]"></div>
+
+        <!-- ヘッダーエリア -->
+        <header class="text-center mb-8">
+            <p class="text-[#b49b5a] text-sm uppercase tracking-widest mb-2 font-bold">Calendrier Quotidien</p>
+            <h1 class="text-4xl md:text-5xl font-semibold text-[#2c3e50] italic mb-4">
+                Le Chat du Jour
+            </h1>
+            <div class="h-px w-16 bg-[#b49b5a] mx-auto mb-4"></div>
+            <p class="text-xl text-gray-600 serif-font" id="date-display">
+                <!-- JavaScriptで現在の日付が挿入されます -->
+            </p>
+        </header>
+
+        <!-- メインコンテンツ (猫の画像) -->
+        <div class="p-2 bg-white shadow-lg border border-gray-100 mb-8 transform rotate-1 hover:rotate-0 transition duration-500">
+            <div class="image-container border-double-gold bg-gray-50">
+                
+                <!-- ローディング/エラーメッセージコンテナ -->
+                <div id="image-placeholder" class="flex flex-col items-center justify-center text-[#b49b5a] text-center p-6 h-full">
+                    <div id="loading-spinner" class="animate-spin rounded-full h-8 w-8 border-b-2 border-[#2c3e50] mb-3"></div>
+                    <span id="status-message" class="serif-font italic text-lg">
+                        Chargement...
+                    </span>
+                </div>
+                
+                <!-- 猫の画像要素 -->
+                <img id="cat-image" 
+                     alt="Le chat élégant" 
+                     class="w-full h-full object-cover transition-opacity duration-1000 opacity-0 grayscale hover:grayscale-0 transition-all">
+            </div>
+        </div>
+
+        <!-- アクションボタン (手動更新) -->
+        <div class="text-center">
+            <button id="refresh-button" 
+                    class="btn-french serif-font py-3 px-8 rounded shadow text-lg w-full md:w-auto">
+                Découvrir un nouveau chat
+            </button>
+            <p class="text-xs text-gray-400 mt-4 italic font-light">
+                Sélectionné depuis The Cat API
+            </p>
+        </div>
+
+    </div>
+
+    <script>
+        // Cat APIのエンドポイント
+        const CAT_API_URL = 'https://api.thecatapi.com/v1/images/search?limit=1&mime_types=jpg,png';
+        
+        // DOM要素の取得
+        const catImage = document.getElementById('cat-image');
+        const imagePlaceholder = document.getElementById('image-placeholder');
+        const statusMessage = document.getElementById('status-message');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const dateDisplay = document.getElementById('date-display');
+        const refreshButton = document.getElementById('refresh-button');
+        
+        /**
+         * 画像ロード成功時のハンドラ
+         */
+        function handleImageLoad() {
+            catImage.classList.add('opacity-100');
+            catImage.classList.remove('opacity-0');
+            imagePlaceholder.style.display = 'none';
+            // 重要：ロード完了時にボタンを再び有効化
+            refreshButton.disabled = false;
+        }
+
+        /**
+         * 画像ロードエラー時のハンドラ
+         */
+        function handleImageError() {
+            statusMessage.textContent = 'Pardon, une erreur est survenue.';
+            loadingSpinner.style.display = 'none';
+            catImage.classList.remove('opacity-100');
+            catImage.classList.add('opacity-0');
+            // 画像ソースをクリア
+            catImage.removeAttribute('src');
+            imagePlaceholder.style.display = 'flex';
+            // エラー時もボタンを有効化して再試行可能にする
+            refreshButton.disabled = false;
+        }
+
+        // イベントリスナーの設定
+        catImage.addEventListener('load', handleImageLoad);
+        catImage.addEventListener('error', handleImageError);
+
+        /**
+         * 現在の日付を表示（フランス語風フォーマット）
+         */
+        function displayCurrentDate() {
+            const date = new Date();
+            const year = date.getFullYear();
+            const month = date.getMonth() + 1;
+            const day = date.getDate();
+            
+            const dayOfWeek = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'][date.getDay()];
+            const months = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+            
+            // 例: Lundi, 12 Octobre 2023
+            dateDisplay.textContent = `${dayOfWeek}, ${day} ${months[month - 1]} ${year}`;
+        }
+
+        /**
+         * Cat APIから画像を取得
+         */
+        async function fetchAndDisplayCatImage(attempt = 1, maxRetries = 3, delay = 1000) {
+            // 初回試行時のみUIをリセット（再試行時のちらつき防止のため）
+            if (attempt === 1) {
+                imagePlaceholder.style.display = 'flex';
+                statusMessage.textContent = 'Recherche du chat parfait...';
+                loadingSpinner.style.display = 'block';
+                catImage.classList.remove('opacity-100');
+                catImage.classList.add('opacity-0');
+                refreshButton.disabled = true;
+            }
+
+            try {
+                const response = await fetch(CAT_API_URL);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP Error: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                if (data && data.length > 0 && data[0].url) {
+                    // srcを設定するとロードが開始され、完了後にloadイベントが発火します
+                    // ボタンの有効化は handleImageLoad で行われます
+                    catImage.src = data[0].url;
+                    catImage.alt = "Le chat élégant";
+                    return; 
+                } else {
+                    throw new Error("No image data");
+                }
+
+            } catch (error) {
+                console.error("Erreur:", error);
+
+                if (attempt < maxRetries) {
+                    statusMessage.textContent = `Nouvelle tentative... (${attempt}/${maxRetries})`;
+                    await new Promise(resolve => setTimeout(resolve, delay * attempt));
+                    await fetchAndDisplayCatImage(attempt + 1, maxRetries, delay);
+                } else {
+                    // 最大リトライ回数を超えた場合
+                    statusMessage.textContent = 'Impossible de charger le chat.';
+                    loadingSpinner.style.display = 'none';
+                    refreshButton.disabled = false;
+                }
+            }
+        }
+
+        // ボタンイベントリスナー
+        refreshButton.addEventListener('click', () => {
+            fetchAndDisplayCatImage();
+        });
+
+        // 初期化
+        window.onload = function() {
+            displayCurrentDate();
+            fetchAndDisplayCatImage();
+        };
+    </script>
+</body>
+</html>
